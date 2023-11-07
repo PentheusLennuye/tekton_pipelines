@@ -5,8 +5,10 @@ metadata:
   name: tb-github-push
 spec:
   params:
+    - name: base 
+      value: PUSH-NOBASE
     - name: head
-      value: $(body.pull_request.head.ref)  # e.g. feature/nia-238, hotfix/nia-227
+      value: $(extensions.branch_name)  # e.g. feature/nia-238, hotfix/nia-227
     - name: repo-url
       value: $(body.repository.ssh_url)
     - name: repo-name

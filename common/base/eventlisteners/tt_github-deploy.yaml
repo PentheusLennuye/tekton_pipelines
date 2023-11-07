@@ -2,7 +2,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: tt-github-pr-trigger-template
+  name: tt-github-deploy
 spec:
   params:
     - name: repo-url
@@ -13,11 +13,11 @@ spec:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
     metadata:
-      generateName: epl-helloworld-open-run-
+      generateName: epl-deploy-run-
     spec:
       serviceAccountName: tekton-kubectl-service-account
       pipelineRef:
-        name: pl-helloworld-open
+        name: pl-github-deploy
       workspaces:
         - name: shared-data
           volumeClaimTemplate:

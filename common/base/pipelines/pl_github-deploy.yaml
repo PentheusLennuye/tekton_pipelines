@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: pl-helloworld-open
+  name: pl-github-deploy
 spec:
   description: |
     This pipeline reacts to a pull request to "/" From feature to develop, it

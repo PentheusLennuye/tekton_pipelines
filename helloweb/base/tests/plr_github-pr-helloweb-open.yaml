@@ -2,12 +2,12 @@
 apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
-  generateName: pl-helloworld-open-run-
+  generateName: pl-github-deploy-run-
   namespace: develop
 spec:
   serviceAccountName: tekton-kubectl-service-account
   pipelineRef:
-    name: pl-helloworld-open
+    name: pl-github-deploy
 
   podTemplate:
     securityContext:

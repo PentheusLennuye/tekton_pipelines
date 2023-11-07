@@ -1,22 +1,13 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: pl-helloworld-close
+  name: pl-remove-deployment
 spec:
   description: |
     This pipeline reacts to a "close" pull request from a feature, hotfix or
     release head. It deletes the deployment.
 
   params:
-    - name: repo-url
-      description: The git repo URL to clone from.
-    - name: base
-      description: The git branch to which the PR wishes a merge
-    - name: head
-      description: The git branch from which the PR occurs
-    - name: user
-      description: The local user on the build containers
-
     # Images
     - name: python-image
       type: string
@@ -30,19 +21,7 @@ spec:
 
   # -----------------------------------------------------
   tasks:
-    - name: validate-gitflow-pr
-      taskRef:
-        name: validate-gitflow-pr
-      params:
-        - name: python-image
-          value: $(params.python-image)
-        - name: base
-          value: $(params.base)
-        - name: head
-          value: $(params.head)
-
     - name: undeploy-image
-      runAfter: ["validate-gitflow-pr"]
       taskRef:
         name: kubernetes-actions  # From Tekton Hub
       params:

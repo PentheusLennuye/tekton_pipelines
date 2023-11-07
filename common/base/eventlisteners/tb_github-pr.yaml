@@ -6,9 +6,9 @@ metadata:
 spec:
   params:
     - name: base
-      value: $(body.pull_request.base.ref)  # e.g. main, develop, staging
+      value: $(extensions.base_branchname)  # e.g. main, develop, staging
     - name: head
-      value: $(body.pull_request.head.ref)  # e.g. feature/nia-238, hotfix/nia-227
+      value: $(extensions.head_branchname)  # e.g. feature/nia-238, hotfix/nia-227
     - name: repo-url
       value: $(body.repository.ssh_url)
     - name: repo-name

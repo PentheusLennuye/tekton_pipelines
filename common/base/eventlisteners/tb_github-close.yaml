@@ -1,0 +1,10 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: tb-github-close
+spec:
+  params:
+    - name: repo-name
+      value: $(body.repository.name)
+

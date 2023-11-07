@@ -2,7 +2,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
-  name: github-pr
+  name: github-event
 spec:
   serviceAccountName: tekton-service-account
   triggers:
@@ -10,113 +10,112 @@ spec:
       bindings:
         - ref: tb-github-push
       template:
-        ref: tt-github-push-trigger-template
+        ref: tt-github-deploy
       interceptors:
         - name: "Pushes"
           ref:
             name: "github"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "eventTypes"
               value: ["push"]
-        - name: "Only Push Requests from designated user"
+        - name: "Only Pull Requests from designated user"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
               value: "body.sender.login == 'PentheusLennuye'"
-        - name: "CEL filter: Do not accept Pushes into develop or main"
+        - name: cel-add-head-branch-name
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
+          params:
+            - name: "overlays"
+              value:
+                - key: branch_name
+                  expression: "body.ref.split('/')[2]"
+        - name: "CEL filter: Do not process pushes into develop or main"
+          ref:
+            name: "cel"
           params:
             - name: "filter"
-              value: "!(body.ref in ['refs/heads/main', 'refs/heads/develop'])"
+              value: "!(body.ref in ['refs/heads/develop', 'refs/heads/main'])"
+
+    # PULL REQUESTS ============================================================
+    # Pull Request Open --------------------------------------------------------
     - name: trigger-pr
       bindings:
         - ref: tb-github-pr
       template:
-        ref: tt-github-pr-trigger-template
+        ref: tt-github-deploy
       interceptors:
         - name: "Only Pull Requests"
           ref:
             name: "github"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "eventTypes"
               value: ["pull_request"]
         - name: "Only Pull Requests from designated user"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
               value: "body.sender.login == 'PentheusLennuye'"
         - name: "CEL filter: only opened PRs"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "filter"
               value: "body.action in ['opened', 'synchronize', 'reopened']"
         - name: "CEL filter: Do not accept PRs from develop or main"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "filter"
               value: "!(body.pull_request.head.ref in ['main', 'develop'])"
         - name: "CEL filter: Accept PRs only to develop and main"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "filter"
               value: "body.pull_request.base.ref in ['main', 'develop']"
+        - name: "CEL Overlays: set branch names"
+          ref:
+            name: "cel"
+          params:
+            - name: "overlays"
+              value:
+                - key: extensions.head_branchname
+                  expression: "body.pull_request.head.ref"
+                - key: extensions.base_branchname
+                  expression: "body.pull_request.base.ref"
+
+    # Pull Request Close -----------------------------------------------------
     - name: trigger-close
       bindings:
-        - ref: tb-github-pr
+        - ref: tb-github-close
       template:
-        ref: tt-github-close-trigger-template
+        ref: tt-github-remove-deployment
       interceptors:
         - name: "Only Pull Requests"
           ref:
             name: "github"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "eventTypes"
               value: ["pull_request"]
-        - name: "Only Pull Requests from designated user"
-          ref:
-            name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
-          params:
-            - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
-              value: "body.sender.login == 'PentheusLennuye'"
         - name: "CEL filter: only closed PRs"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "filter"
               value: "body.action in ['closed']"
+        - name: "Only Pull Requests from designated user"
+          ref:
+            name: "cel"
+          params:
+            - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
+              value: "body.sender.login == 'PentheusLennuye'"
         - name: "CEL filter: Do not accept PRs from develop or main"
           ref:
             name: "cel"
-            kind: ClusterInterceptor
-            apiVersion: triggers.tekton.dev
           params:
             - name: "filter"
               value: "!(body.pull_request.head.ref in ['main', 'develop'])"

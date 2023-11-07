@@ -123,8 +123,9 @@ spec:
         # The branches (values) are permitted to flow into the base branches
         # (keys).
         VALID_WORKFLOWS = {
-          'main': ['hotfix', 'release'],  # release and hotfix can merge to main
-          'release': ['develop', 'doc', 'documentation'],
+          'PUSH-NOBASE': ['feature', 'hotfix', 'release'],  # Can accept pushes
+          'main': ['hotfix', 'release'],  # Can merge to main
+          'release': ['develop', 'doc', 'documentation'],  # Can merge to release
           'develop': ['main', 'release', 'doc', 'documentation', 'feature']
         }
 
@@ -144,7 +145,7 @@ spec:
 
         def die_horribly(logger, head, exit_code, base='main'):
             messages = {
-              FATAL_INVALID_WORKFLOW: f"may not merge to {base}",
+              FATAL_INVALID_WORKFLOW: f"may not push or may not merge to {base}",
               FATAL_INVALID_BASENAME: 'is not a valid base'
             }
             logger.fatal(f"git branch '{head}' {messages[exit_code]}")

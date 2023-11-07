@@ -2,9 +2,16 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - eventlisteners/el_github-event.yaml
+  - eventlisteners/tb_github-close.yaml
+  - eventlisteners/tb_github-pr.yaml
+  - eventlisteners/tb_github-push.yaml
+  - eventlisteners/tt_github-deploy.yaml
+  - eventlisteners/tt_github-remove-deployment.yaml
+  - pipelines/pl_github-deploy.yaml
+  - pipelines/pl_remove-deployment.yaml
+  - tasks/task_build-image.yaml
   - tasks/task_clone-github-repo.yaml
   - tasks/task_test-and-build-go.yaml
   - tasks/task_validate-gitflow-pr.yaml
-  - tasks/task_build-image.yaml
-  - eventlisteners/el_github-pr.yaml
-  - eventlisteners/tb_github-pr.yaml
+
