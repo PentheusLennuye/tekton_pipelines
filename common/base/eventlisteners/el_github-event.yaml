@@ -24,10 +24,18 @@ spec:
           params:
             - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
               value: "body.sender.login == 'PentheusLennuye'"
-        - name: cel-add-head-branch-name
+        - name: "CEL filter: Ignore pushes to delete"
           ref:
             name: "cel"
           params:
+            - name: "filter"
+              value: "body.deleted == false"
+        - name: "CEL filter: Ignore pushes into main and develop"
+          ref:
+            name: "cel"
+          params:
+            - name: "filter"
+              value: "!(body.pull_request.head.ref in ['develop', 'main'])"
             - name: "overlays"
               value:
                 - key: branch_name
@@ -71,15 +79,11 @@ spec:
           params:
             - name: "filter"
               value: "body.pull_request.base.ref in ['main', 'develop']"
-        - name: "CEL Overlays: set branch names"
-          ref:
-            name: "cel"
-          params:
             - name: "overlays"
               value:
-                - key: extensions.head_branchname
+                - key: head_branchname
                   expression: "body.pull_request.head.ref"
-                - key: extensions.base_branchname
+                - key: base_branchname
                   expression: "body.pull_request.base.ref"
 
     # Merged: i.e. Pull Request Closed and Merged is True ---------------------------
@@ -115,8 +119,8 @@ spec:
               value: "!(body.pull_request.head.ref in ['main', 'develop'])"
             - name: "overlays"
               value:
-                - key: extensions.head_branchname
+                - key: head_branchname
                   expression: "body.pull_request.head.ref"
-                - key: extensions.base_branchname
+                - key: base_branchname
                   expression: "body.pull_request.base.ref"
 
