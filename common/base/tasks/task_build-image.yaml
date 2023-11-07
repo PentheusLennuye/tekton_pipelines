@@ -1,0 +1,28 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-image
+spec:
+  description: Test go code and, on success, build
+  params:
+    - name: imagebuilder
+      description: The image that builds the docker container
+    - name: host
+    - name: project
+    - name: image
+      description: The name of the container image we are building
+    - name: version
+      description: 0.1.0, 0.2.3, nia-923
+    - name: build-extension
+      description: -rc or blank. Used for git and container image tags
+  workspaces:
+  - name: source
+  steps:
+  - name: read
+    image: $(params.imagebuilder)
+    args:
+      - "--dockerfile=$(workspaces.source.path)/Dockerfile"
+      - "--context=$(workspaces.source.path)"
+      - "--destination=$(params.host)/$(params.project)/$(params.image):$(params.version)$(params.build-extension)"
+      - "--skip-tls-verify"

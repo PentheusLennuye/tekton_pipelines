@@ -1,0 +1,35 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: tt-github-close-trigger-template
+spec:
+  params:
+    - name: repo-url
+    - name: repo-name
+    - name: base
+    - name: head
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: epl-helloworld-close-run-
+    spec:
+      serviceAccountName: tekton-kubectl-service-account
+      pipelineRef:
+        name: pl-helloworld-close
+      workspaces:
+        - name: git-credentials
+          secret:
+            secretName: git-machine-credentials
+      params:
+        - name: repo-url
+          value: $(tt.params.repo-url)
+        - name: base
+          value: $(tt.params.base)
+        - name: head
+          value: $(tt.params.head)
+        - name: user
+          value: builder
+        - name: deployment-name
+          value: $(tt.params.repo-name)

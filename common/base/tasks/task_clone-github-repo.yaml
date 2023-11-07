@@ -1,0 +1,50 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: clone-github-repo
+spec:
+  description: Clone a repo into the workspace
+
+  params:
+    - description: Repository URL to clone from
+      name: url
+      type: string
+    - description: The branch from which the PR comes 
+      name: head
+      type: string
+    - description: Git clone image
+      name: git-clone-image
+      type: string
+    - description: Build user
+      name: build-user
+      type: string
+
+  workspaces:
+    - name: output
+    - name: ssh-directory
+
+  steps:
+    - name: clone
+      env:
+        - name: PARAM_URL
+          value: $(params.url)
+        - name: PARAM_BUILD_USER
+          value: $(params.build-user)
+        - name: BRANCH_NAME
+          value: $(params.head)
+        - name: WORKSPACE
+          value: $(workspaces.output.path)
+        - name: SSHCONFDIR
+          value: $(workspaces.ssh-directory.path)
+        - name: GIT_SSH_COMMAND
+          value: "ssh -i /home/${PARAM_BUILD_USER}/.ssh/id_rsa"
+      image: $(params.git-clone-image)
+      script: |
+        #!/usr/bin/env sh
+        cp -R ${SSHCONFDIR} /home/${PARAM_BUILD_USER}/.ssh
+        chmod 700 /home/${PARAM_BUILD_USER}/.ssh
+        chmod -R 600 /home/${PARAM_BUILD_USER}/.ssh/*
+
+        git clone --branch ${BRANCH_NAME} ${PARAM_URL} ${WORKSPACE}
+

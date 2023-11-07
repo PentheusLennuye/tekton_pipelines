@@ -1,0 +1,16 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: tb-github-pr
+spec:
+  params:
+    - name: base
+      value: $(body.pull_request.base.ref)  # e.g. main, develop, staging
+    - name: head
+      value: $(body.pull_request.head.ref)  # e.g. feature/nia-238, hotfix/nia-227
+    - name: repo-url
+      value: $(body.repository.ssh_url)
+    - name: repo-name
+      value: $(body.repository.name)
+

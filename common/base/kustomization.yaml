@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - tasks/task_clone-github-repo.yaml
+  - tasks/task_test-and-build-go.yaml
+  - tasks/task_validate-gitflow-pr.yaml
+  - tasks/task_build-image.yaml
+  - eventlisteners/el_github-pr.yaml
+  - eventlisteners/tb_github-pr.yaml

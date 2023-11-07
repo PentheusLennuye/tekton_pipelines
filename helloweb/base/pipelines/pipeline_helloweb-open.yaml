@@ -1,0 +1,205 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: pl-helloworld-open
+spec:
+  description: |
+    This pipeline reacts to a pull request to "/" From feature to develop, it
+    tests, builds, pushes and deploys the docker image. From release to main,
+    it does the same. This is an open pull request only; closing pull request
+    that delete the deployments are out of scope.
+
+  params:
+    - name: repo-url
+      description: The git repo URL to clone from.
+    - name: base
+      description: The git branch to which the PR wishes a merge
+    - name: head
+      description: The git branch from which the PR occurs
+    - name: user
+      description: The local user on the build containers
+
+    # Images ---------------------------------------------
+    - name: git-clone-image
+      type: string
+      description: The docker image with git and validation tools
+      default: docker.cummings-online.local/dev/git:0.1.0
+    - name: go-image
+      type: string
+      description: The docker image with Go and Go Tools
+      default: docker.cummings-online.local/dev/go:0.1.0
+    - name: python-image
+      type: string
+      description: The docker image with Python 3
+      default: python:3.12.0-alpine
+    - name: image-kaniko
+      type: string
+      description: The image that builds the containers
+      default: bitnami/kaniko:1.17.0
+
+    # Docker repo
+    - name: docker-host
+      type: string
+      description: The hostname of the docker repo, without https
+    - name: docker-project
+      type: string
+      description: The folder on the repo containing the container
+    - name: build-name
+      type: string
+      description: The name of the image we are building, without version
+
+    # Deployment and services
+    - name: deployment-name
+      type: string
+      description: The name of the deployment, service and DNS
+
+  # -----------------------------------------------------
+  workspaces:
+    - name: shared-data
+      description: |
+        This workspace contains the cloned repo files, so they can be read by the
+        next task.
+    - name: git-credentials
+      description: GitHub machine credentials ssh config
+
+  # -----------------------------------------------------
+  tasks:
+    - name: validate-gitflow-pr
+      taskRef:
+        name: validate-gitflow-pr
+      params:
+        - name: python-image
+          value: $(params.python-image)
+        - name: base
+          value: $(params.base)
+        - name: head
+          value: $(params.head)
+
+    - name: fetch-source
+      runAfter: ["validate-gitflow-pr"]
+      taskRef:
+        name: clone-github-repo
+      workspaces:
+        - name: output
+          workspace: shared-data
+        - name: ssh-directory
+          workspace: git-credentials
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: head
+          value: $(params.head)
+        - name: git-clone-image
+          value: $(params.git-clone-image)
+        - name: build-user
+          value: $(params.user)
+
+    - name: test-and-build-source
+      runAfter: ["fetch-source"]
+      taskRef:
+        name: test-and-build-go  # From Common
+      params:
+        - name: go-image
+          value: $(params.go-image)
+      workspaces:
+        - name: source
+          workspace: shared-data
+
+    - name: build-and-publish-image
+      runAfter: ["test-and-build-source"]
+      taskRef:
+        name: build-image  # From Common
+      params:
+        - name: imagebuilder
+          value: $(params.image-kaniko)
+        - name: host
+          value: $(params.docker-host)
+        - name: project
+          value: $(params.docker-project)
+        - name: image
+          value: $(params.build-name)
+        - name: version 
+          value: $(tasks.validate-gitflow-pr.results.build-version)
+        - name: build-extension
+          value: $(tasks.validate-gitflow-pr.results.build-extension)
+      workspaces:
+        - name: source
+          workspace: shared-data
+
+    - name: deploy-image
+      runAfter: ["build-and-publish-image"]
+      taskRef:
+        name: kubernetes-actions  # From Tekton Hub
+      params:
+        - name: "image"
+          value: gcr.io/cloud-builders/kubectl@sha256:7d4a4b1555e66b0186663647ec945247cf2840bd230ebb9af6d049ebe6d12590
+        - name: "script"
+          value: |
+            export IMAGE_NAME=$(params.docker-host)/$(params.docker-project)/$(params.build-name)
+            export IMAGE_VER=$(tasks.validate-gitflow-pr.results.build-version)$(tasks.validate-gitflow-pr.results.build-extension)
+            export IMAGE_RELEASE=$IMAGE_NAME:$IMAGE_VER
+            export DEPLOYMENT=$(params.deployment-name)
+            export NUMREPLICAS=2  # For demo. Better to use params depending on deploy/stage/prod
+            export LOADBALANCERIP=192.168.68.74  # For demonstration only on non-cloud K8S cluster
+            export BRANCH_TYPE=$(tasks.validate-gitflow-pr.results.branch-type)
+
+            kubectl version | grep 'Client Version'
+
+            kubectl get deployment/$DEPLOYMENT >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+              echo "setting image deployment/$DEPLOYMENT $IMAGE_NAME=$IMAGE_RELEASE"
+              kubectl set image deploy $DEPLOYMENT --$IMAGE_NAME:$IMAGE_RELEASE
+              kubectl annotate deploy $DEPLOYMENT kubernetes.io/change-cause="Updated to $IMAGE_VER" --overwrite
+            else
+              echo "creating new image deployment/$DEPLOYMENT using $IMAGE_RELEASE"
+              kubectl create -f - <<EODEP
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: $DEPLOYMENT
+              labels:
+                app: $DEPLOYMENT
+            spec:
+              replicas: $NUMREPLICAS
+              selector:
+                matchLabels:
+                  app: $DEPLOYMENT
+              template:
+                metadata:
+                  labels:
+                    app: $DEPLOYMENT
+                spec:
+                  containers:
+                    - image: $IMAGE_RELEASE
+                      name: $DEPLOYMENT
+                      imagePullPolicy: Always
+            EODEP
+            fi
+
+            kubectl rollout status deploy $DEPLOYMENT --timeout 5m
+
+            kubectl get svc $DEPLOYMENT >/dev/null 2>&1
+            if [ $? -ne 0 ]; then
+              echo "Create new service $DEPLOYMENT"
+              kubectl apply -f - <<EOSVC
+            apiVersion: v1
+            kind: Service
+            metadata:
+              annotations:
+                metallb.universe.tf/loadBalancerIPs: $LOADBALANCERIP
+              labels:
+                app: $DEPLOYMENT
+              name: $DEPLOYMENT
+            spec:
+              selector:
+                app: $DEPLOYMENT
+              type: LoadBalancer
+              ports:
+                - name: http
+                  port: 80
+                  protocol: TCP
+                  targetPort: 8080
+
+            EOSVC
+            fi
+

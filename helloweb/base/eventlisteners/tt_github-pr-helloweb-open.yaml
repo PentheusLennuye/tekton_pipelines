@@ -1,0 +1,50 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: tt-github-pr-trigger-template
+spec:
+  params:
+    - name: repo-url
+    - name: repo-name
+    - name: base
+    - name: head
+  resourcetemplates:
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: epl-helloworld-open-run-
+    spec:
+      serviceAccountName: tekton-kubectl-service-account
+      pipelineRef:
+        name: pl-helloworld-open
+      workspaces:
+        - name: shared-data
+          volumeClaimTemplate:
+            spec:
+              storageClassName: develop-nfs-client
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 10Mi
+        - name: git-credentials
+          secret:
+            secretName: git-machine-credentials
+      params:
+        - name: repo-url
+          value: $(tt.params.repo-url)
+        - name: base
+          value: $(tt.params.base)
+        - name: head
+          value: $(tt.params.head)
+        - name: user
+          value: builder
+        - name: docker-host
+          value: docker.cummings-online.local
+        - name: docker-project
+          value: services
+        - name: build-name
+          value: $(tt.params.repo-name)
+        - name: deployment-name
+          value: $(tt.params.repo-name)

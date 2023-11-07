@@ -1,0 +1,31 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: pl-helloworld-close-run-
+  namespace: develop
+spec:
+  serviceAccountName: tekton-kubectl-service-account
+  pipelineRef:
+    name: pl-helloworld-close
+
+  podTemplate:
+    securityContext:
+      fsGroup: 65532
+
+  workspaces:
+  - name: git-credentials
+    secret:
+      secretName: git-machine-credentials
+
+  params:
+    - name: repo-url
+      value: git@github.com:PentheusLennuye/helloweb.git
+    - name: base
+      value: main
+    - name: head
+      value: release-0.2.0
+    - name: user
+      value: builder
+    - name: deployment-name
+      value: helloweb

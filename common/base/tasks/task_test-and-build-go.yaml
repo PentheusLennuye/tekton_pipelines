@@ -1,0 +1,23 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: test-and-build-go
+spec:
+  description: Test go code and, on success, build
+  params:
+    - name: go-image
+      description: The docker image with Go and Go Tools
+  workspaces:
+  - name: source
+  steps:
+  - name: read
+    image: $(params.go-image)
+    script: |
+      #!/usr/bin/env sh
+      cd $(workspaces.source.path)
+      ls -l
+      echo "Testing and building"
+      go fmt ./... && \
+      go test ./... && \
+      go build -o bin/

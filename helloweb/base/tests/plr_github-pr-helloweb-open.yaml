@@ -1,0 +1,53 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: pl-helloworld-open-run-
+  namespace: develop
+spec:
+  serviceAccountName: tekton-kubectl-service-account
+  pipelineRef:
+    name: pl-helloworld-open
+
+  podTemplate:
+    securityContext:
+      fsGroup: 65532
+
+  workspaces:
+  - name: shared-data
+    volumeClaimTemplate:
+      spec:
+        storageClassName: develop-nfs-client
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Mi
+        volumeMode: Filesystem
+  - name: git-credentials
+    secret:
+      secretName: git-machine-credentials
+
+  params:
+    - name: repo-url
+      value: git@github.com:PentheusLennuye/helloweb.git
+    - name: base
+      value: main
+    - name: head
+      value: release-0.2.0
+    - name: user
+      value: builder
+    - name: payload-signature
+      value: 'sha256=yabadababooboofead9102'
+    - name: webhook-token
+      value: github-webhook-secret
+    - name: payload
+      value: '{ body: "nothing" }'
+    - name: docker-host
+      value: docker.cummings-online.local
+    - name: docker-project
+      value: services
+    - name: build-name
+      value: helloweb
+    - name: deployment-name
+      value: helloweb

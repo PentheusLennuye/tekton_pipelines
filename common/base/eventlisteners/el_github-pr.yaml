@@ -1,0 +1,123 @@
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-pr
+spec:
+  serviceAccountName: tekton-service-account
+  triggers:
+    - name: trigger-push
+      bindings:
+        - ref: tb-github-push
+      template:
+        ref: tt-github-push-trigger-template
+      interceptors:
+        - name: "Pushes"
+          ref:
+            name: "github"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "eventTypes"
+              value: ["push"]
+        - name: "Only Push Requests from designated user"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
+              value: "body.sender.login == 'PentheusLennuye'"
+        - name: "CEL filter: Do not accept Pushes into develop or main"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "!(body.ref in ['refs/heads/main', 'refs/heads/develop'])"
+    - name: trigger-pr
+      bindings:
+        - ref: tb-github-pr
+      template:
+        ref: tt-github-pr-trigger-template
+      interceptors:
+        - name: "Only Pull Requests"
+          ref:
+            name: "github"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "eventTypes"
+              value: ["pull_request"]
+        - name: "Only Pull Requests from designated user"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
+              value: "body.sender.login == 'PentheusLennuye'"
+        - name: "CEL filter: only opened PRs"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "body.action in ['opened', 'synchronize', 'reopened']"
+        - name: "CEL filter: Do not accept PRs from develop or main"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "!(body.pull_request.head.ref in ['main', 'develop'])"
+        - name: "CEL filter: Accept PRs only to develop and main"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "body.pull_request.base.ref in ['main', 'develop']"
+    - name: trigger-close
+      bindings:
+        - ref: tb-github-pr
+      template:
+        ref: tt-github-close-trigger-template
+      interceptors:
+        - name: "Only Pull Requests"
+          ref:
+            name: "github"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "eventTypes"
+              value: ["pull_request"]
+        - name: "Only Pull Requests from designated user"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "CEL Filter: security stand-in due to Ngrok rewrite issues"
+              value: "body.sender.login == 'PentheusLennuye'"
+        - name: "CEL filter: only closed PRs"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "body.action in ['closed']"
+        - name: "CEL filter: Do not accept PRs from develop or main"
+          ref:
+            name: "cel"
+            kind: ClusterInterceptor
+            apiVersion: triggers.tekton.dev
+          params:
+            - name: "filter"
+              value: "!(body.pull_request.head.ref in ['main', 'develop'])"
+
