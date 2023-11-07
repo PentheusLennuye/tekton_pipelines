@@ -6,7 +6,7 @@ metadata:
 spec:
   serviceAccountName: tekton-service-account
   triggers:
-    - name: trigger-push-feature
+    - name: trigger-push
       bindings:
         - ref: github-push
       template:
