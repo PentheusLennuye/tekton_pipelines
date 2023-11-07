@@ -6,13 +6,13 @@ metadata:
 spec:
   serviceAccountName: tekton-service-account
   triggers:
-    - name: trigger-push
+    - name: trigger-push-feature
       bindings:
-        - ref: tb-github-push
+        - ref: github-push
       template:
-        ref: tt-github-deploy
+        ref: github-build-deploy
       interceptors:
-        - name: "Pushes"
+        - name: "Only Pushes"
           ref:
             name: "github"
           params:
@@ -32,20 +32,14 @@ spec:
               value:
                 - key: branch_name
                   expression: "body.ref.split('/')[2]"
-        - name: "CEL filter: Do not process pushes into develop or main"
-          ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: "!(body.ref in ['refs/heads/develop', 'refs/heads/main'])"
 
     # PULL REQUESTS ============================================================
     # Pull Request Open --------------------------------------------------------
     - name: trigger-pr
       bindings:
-        - ref: tb-github-pr
+        - ref: github-pr
       template:
-        ref: tt-github-deploy
+        ref: github-build-deploy
       interceptors:
         - name: "Only Pull Requests"
           ref:
@@ -64,13 +58,13 @@ spec:
             name: "cel"
           params:
             - name: "filter"
-              value: "body.action in ['opened', 'synchronize', 'reopened']"
-        - name: "CEL filter: Do not accept PRs from develop or main"
+              value: "body.action in ['opened', 'reopened']"  # no synchronize
+        - name: "CEL filter: Do not accept PRs from develop"
           ref:
             name: "cel"
           params:
             - name: "filter"
-              value: "!(body.pull_request.head.ref in ['main', 'develop'])"
+              value: "!(body.pull_request.head.ref == 'develop')"
         - name: "CEL filter: Accept PRs only to develop and main"
           ref:
             name: "cel"
@@ -88,12 +82,12 @@ spec:
                 - key: extensions.base_branchname
                   expression: "body.pull_request.base.ref"
 
-    # Pull Request Close -----------------------------------------------------
-    - name: trigger-close
+    # Merged: i.e. Pull Request Closed and Merged is True ---------------------------
+    - name: trigger-merge
       bindings:
-        - ref: tb-github-close
+        - ref: github-pr
       template:
-        ref: tt-github-remove-deployment
+        ref: github-tag-delete
       interceptors:
         - name: "Only Pull Requests"
           ref:
@@ -101,12 +95,12 @@ spec:
           params:
             - name: "eventTypes"
               value: ["pull_request"]
-        - name: "CEL filter: only closed PRs"
+        - name: "CEL filter: only closed PRs with merge set to true"
           ref:
             name: "cel"
           params:
             - name: "filter"
-              value: "body.action in ['closed']"
+              value: "body.action in ['closed'] && body.pull_request.merged == true"
         - name: "Only Pull Requests from designated user"
           ref:
             name: "cel"
@@ -119,4 +113,10 @@ spec:
           params:
             - name: "filter"
               value: "!(body.pull_request.head.ref in ['main', 'develop'])"
+            - name: "overlays"
+              value:
+                - key: extensions.head_branchname
+                  expression: "body.pull_request.head.ref"
+                - key: extensions.base_branchname
+                  expression: "body.pull_request.base.ref"
 

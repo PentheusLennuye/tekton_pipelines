@@ -2,21 +2,22 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
 metadata:
-  name: tt-github-remove-deployment
+  name: github-tag-delete
 spec:
   params:
     - name: repo-url
     - name: repo-name
+    - name: base 
     - name: head
   resourcetemplates:
   - apiVersion: tekton.dev/v1beta1
     kind: PipelineRun
     metadata:
-      generateName: epl-remove-deployment-run-
+      generateName: epl-github-tag-delete-run-
     spec:
       serviceAccountName: tekton-kubectl-service-account
       pipelineRef:
-        name: pl-remove-deployment
+        name: github-tag-delete
       workspaces:
         - name: git-credentials
           secret:

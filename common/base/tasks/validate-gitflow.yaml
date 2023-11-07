@@ -1,0 +1,77 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: validate-gitflow
+spec:
+  description: Ensure the pull request is valid using GitFlow conventions
+  params:
+    - name: head
+      description: Head branch name (i.e. feature/xxx, hotfix/xxx, doc/xxx)
+      type: string
+    - name: base 
+      description: Base branch name (i.e. main, develop, staging)
+      type: string
+    - name: python-image
+      description: The docker image with python
+      type: string
+  steps:
+    - name: verify-gitflow
+      image: $(params.python-image)
+      env:
+        - name: HEAD
+          value: $(params.head)
+        - name: BASE
+          value: $(params.base)
+      script: |
+        #!/usr/bin/env python3
+        """Ensure GitFlow is followed before the PR is even considered for merging."""
+        import logging
+        import os
+        import re
+        import sys
+
+        # The branches (values) are permitted to flow into the base branches
+        # (keys).
+        VALID_WORKFLOWS = {
+          'main': ['hotfix', 'release'],  # Can merge to main
+          'release': ['develop', 'doc', 'documentation'],  # Can merge to release
+          'develop': ['main', 'release', 'doc', 'documentation', 'feature']
+        }
+
+        BRANCHES_FEATUREVER = ['doc', 'documentation', 'feature']
+
+        FATAL_INVALID_WORKFLOW = 1
+        FATAL_INVALID_BASENAME = 2
+
+
+        def set_logging():
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setLevel(logging.ERROR)
+            logger = logging.getLogger()
+            logger.addHandler(handler)
+            return logger
+
+
+        def die_horribly(logger, head, exit_code, base='main'):
+            messages = {
+              FATAL_INVALID_WORKFLOW: f"may not push or may not merge to {base}",
+              FATAL_INVALID_BASENAME: 'is not a valid base'
+            }
+            logger.fatal(f"git branch '{head}' {messages[exit_code]}")
+            sys.exit(exit_code)
+
+        logger = set_logging()
+
+        head = os.getenv('HEAD')
+        base = os.getenv('BASE')
+        branch_type = head.split('/')[0]
+        if branch_type not in BRANCHES_FEATUREVER:
+            branch_type = head.split('-')[0]
+
+        try:
+            if branch_type not in VALID_WORKFLOWS[base]:
+                die_horribly(logger, branch_type, FATAL_INVALID_WORKFLOW, base)
+        except KeyError:
+            die_horribly(logger, base, FATAL_INVALID_BASENAME)
+

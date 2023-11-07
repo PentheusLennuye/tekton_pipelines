@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: pl-remove-deployment
+  name: github-tag-delete
 spec:
   description: |
     This pipeline reacts to a "close" pull request from a feature, hotfix or

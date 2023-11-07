@@ -2,35 +2,29 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: validate-gitflow-pr
+  name: validate-gitbranch
 spec:
-  description: Ensure the pull request is valid using GitFlow conventions
+  description: Ensure the head branch name uses company conventions
   params:
     - name: head
       description: Head branch name (i.e. feature/xxx, hotfix/xxx, doc/xxx)
       type: string
-    - name: base 
-      description: Base branch name (i.e. main, develop, staging)
-      type: string
     - name: python-image
-      description: The docker image with python
       type: string
   stepTemplate:
-    image: $(params.python-image)
-    env:
-      - name: HEAD
-        value: $(params.head)
-      - name: BASE
-        value: $(params.base)
   results:  # passes on to other tasks
     - name: branch-type
       description: feature, release, develop, doc, documentation, hotfix
-    - name: build-version
+    - name: code-version
       description: 0.1.0, 0.2.3, nia-912
     - name: build-extension
       description: -rc or blank. Used for git and image tags
   steps:
     - name: verify-branch-name
+      image: $(params.python-image)
+      env:
+        - name: HEAD
+          value: $(params.head)
       script: | 
         #!/usr/bin/env python3
         """Ensure GitFlow head names are valid before considering for merging."""
@@ -101,67 +95,11 @@ spec:
         f.write(branch_type)
         f.close()
 
-        f = open('$(results.build-version.path)', 'w')
+        f = open('$(results.code-version.path)', 'w')
         f.write(version)
         f.close()
 
         f = open('$(results.build-extension.path)', 'w')
         f.write(build_extension)
         f.close()
-
-        
-
-    - name: verify-gitflow
-      script: |
-        #!/usr/bin/env python3
-        """Ensure GitFlow is followed before the PR is even considered for merging."""
-        import logging
-        import os
-        import re
-        import sys
-
-        # The branches (values) are permitted to flow into the base branches
-        # (keys).
-        VALID_WORKFLOWS = {
-          'PUSH-NOBASE': ['feature', 'hotfix', 'release'],  # Can accept pushes
-          'main': ['hotfix', 'release'],  # Can merge to main
-          'release': ['develop', 'doc', 'documentation'],  # Can merge to release
-          'develop': ['main', 'release', 'doc', 'documentation', 'feature']
-        }
-
-        BRANCHES_FEATUREVER = ['doc', 'documentation', 'feature']
-
-        FATAL_INVALID_WORKFLOW = 1
-        FATAL_INVALID_BASENAME = 2
-
-
-        def set_logging():
-            handler = logging.StreamHandler(sys.stdout)
-            handler.setLevel(logging.ERROR)
-            logger = logging.getLogger()
-            logger.addHandler(handler)
-            return logger
-
-
-        def die_horribly(logger, head, exit_code, base='main'):
-            messages = {
-              FATAL_INVALID_WORKFLOW: f"may not push or may not merge to {base}",
-              FATAL_INVALID_BASENAME: 'is not a valid base'
-            }
-            logger.fatal(f"git branch '{head}' {messages[exit_code]}")
-            sys.exit(exit_code)
-
-        logger = set_logging()
-
-        head = os.getenv('HEAD')
-        base = os.getenv('BASE')
-        branch_type = head.split('/')[0]
-        if branch_type not in BRANCHES_FEATUREVER:
-            branch_type = head.split('-')[0]
-
-        try:
-            if branch_type not in VALID_WORKFLOWS[base]:
-                die_horribly(logger, branch_type, FATAL_INVALID_WORKFLOW, base)
-        except KeyError:
-            die_horribly(logger, base, FATAL_INVALID_BASENAME)
 

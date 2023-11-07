@@ -2,7 +2,7 @@
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
-  name: tb-github-pr
+  name: github-pr
 spec:
   params:
     - name: base

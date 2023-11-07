@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: pl-github-deploy
+  name: github-build-deploy
 spec:
   description: |
     This pipeline reacts to a pull request to "/" From feature to develop, it
@@ -64,9 +64,24 @@ spec:
 
   # -----------------------------------------------------
   tasks:
-    - name: validate-gitflow-pr
+
+    - name: validate-gitbranch
       taskRef:
-        name: validate-gitflow-pr
+        name: validate-gitbranch
+      params:
+        - name: python-image
+          value: $(params.python-image)
+        - name: base
+          value: $(params.base)
+
+    - name: validate-gitflow
+      runAfter: ["validate-gitbranch"]
+      when:
+        - input: $(params.base)
+          operator: notin
+          values: ['PUSH-NOBASE']
+      taskRef:
+        name: validate-gitflow
       params:
         - name: python-image
           value: $(params.python-image)
@@ -76,7 +91,7 @@ spec:
           value: $(params.head)
 
     - name: fetch-source
-      runAfter: ["validate-gitflow-pr"]
+      runAfter: ["validate-gitflow"]
       taskRef:
         name: clone-github-repo
       workspaces:
@@ -107,6 +122,13 @@ spec:
 
     - name: build-and-publish-image
       runAfter: ["test-and-build-source"]
+      when:
+        - input: $(params.head)
+          operator: in
+          values: ['feature', 'release', 'hotfix']
+        - input: $(params.base)
+          operator: notin
+          values: ['main']
       taskRef:
         name: build-image  # From Common
       params:
@@ -119,15 +141,22 @@ spec:
         - name: image
           value: $(params.build-name)
         - name: version 
-          value: $(tasks.validate-gitflow-pr.results.build-version)
+          value: $(tasks.validate-gitflow.results.code-version)
         - name: build-extension
-          value: $(tasks.validate-gitflow-pr.results.build-extension)
+          value: $(tasks.validate-gitflow.results.build-extension)
       workspaces:
         - name: source
           workspace: shared-data
 
     - name: deploy-image
       runAfter: ["build-and-publish-image"]
+      when:
+        - input: $(params.head)
+          operator: in
+          values: ['feature', 'release', 'hotfix']
+        - input: $(params.base)
+          operator: notin
+          values: ['main']
       taskRef:
         name: kubernetes-actions  # From Tekton Hub
       params:
@@ -136,12 +165,12 @@ spec:
         - name: "script"
           value: |
             export IMAGE_NAME=$(params.docker-host)/$(params.docker-project)/$(params.build-name)
-            export IMAGE_VER=$(tasks.validate-gitflow-pr.results.build-version)$(tasks.validate-gitflow-pr.results.build-extension)
+            export IMAGE_VER=$(tasks.validate-gitflow.results.code-version)$(tasks.validate-gitflow.results.build-extension)
             export IMAGE_RELEASE=$IMAGE_NAME:$IMAGE_VER
             export DEPLOYMENT=$(params.deployment-name)
             export NUMREPLICAS=2  # For demo. Better to use params depending on deploy/stage/prod
             export LOADBALANCERIP=192.168.68.74  # For demonstration only on non-cloud K8S cluster
-            export BRANCH_TYPE=$(tasks.validate-gitflow-pr.results.branch-type)
+            export BRANCH_TYPE=$(tasks.validate-gitflow.results.branch-type)
 
             kubectl version | grep 'Client Version'
 
