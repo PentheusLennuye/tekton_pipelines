@@ -39,5 +39,9 @@ spec:
     script: |
       #!/busybox/sh
       cd ${WORKSPACE}
+      echo "Retagging on Docker"
       crane --insecure tag $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER $NEWVER
-      crane --insecure delete $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER
+
+      echo "Deleting old tag if supported."
+      crane --insecure delete $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER || \
+        ( echo "Unsupported. Continuing." && true )
