@@ -13,5 +13,7 @@ resources:
   - tasks/validate-gitflow.yaml
   - tasks/clone-github-repo.yaml
   - tasks/build-image.yaml
+  - tasks/retag-image-dockerregistry.yaml
   - tasks/test-and-build-go.yaml
+  - tasks/tag-source-code.yaml
 

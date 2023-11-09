@@ -103,7 +103,7 @@ spec:
         - name: url
           value: $(params.repo-url)
         - name: head
-          value: $(params.head)
+          value: $(tasks.validate-gitbranch.results.head)
         - name: git-clone-image
           value: $(params.git-clone-image)
         - name: build-user
@@ -128,7 +128,7 @@ spec:
           values: ['feature', 'release', 'hotfix']
         - input: $(params.base)
           operator: notin
-          values: ['main']
+          values: ['main', 'develop']
       taskRef:
         name: build-image  # From Common
       params:
@@ -156,7 +156,7 @@ spec:
           values: ['feature', 'release', 'hotfix']
         - input: $(params.base)
           operator: notin
-          values: ['main']
+          values: ['main', 'develop']
       taskRef:
         name: kubernetes-actions  # From Tekton Hub
       params:
@@ -164,10 +164,12 @@ spec:
           value: gcr.io/cloud-builders/kubectl@sha256:7d4a4b1555e66b0186663647ec945247cf2840bd230ebb9af6d049ebe6d12590
         - name: "script"
           value: |
-            export IMAGE_NAME=$(params.docker-host)/$(params.docker-project)/$(params.build-name)
+            export DOCKER_HOST=$(params.docker-host)
+            export PROJECT=$(params.docker-project)
+            export IMAGE=$(params.build-name)
             export IMAGE_VER=$(tasks.validate-gitbranch.results.code-version)$(tasks.validate-gitbranch.results.build-extension)
-            export IMAGE_RELEASE=$IMAGE_NAME:$IMAGE_VER
-            export DEPLOYMENT=$(params.deployment-name)
+            export IMAGE_RELEASE=$DOCKER_HOST/$PROJECT/$IMAGE:$IMAGE_VER
+            export DEPLOYMENT=$IMAGE-$(echo $IMAGE_VER | tr '.A-Z' '-a-z')
             export NUMREPLICAS=2  # For demo. Better to use params depending on deploy/stage/prod
             export LOADBALANCERIP=192.168.68.74  # For demonstration only on non-cloud K8S cluster
             export BRANCH_TYPE=$(tasks.validate-gitbranch.results.branch-type)
@@ -175,10 +177,19 @@ spec:
             kubectl version | grep 'Client Version'
 
             kubectl get deployment/$DEPLOYMENT >/dev/null 2>&1
+
+            # Case one: image update
             if [ $? -eq 0 ]; then
               echo "setting image deployment/$DEPLOYMENT $IMAGE_NAME=$IMAGE_RELEASE"
-              kubectl set image deploy $DEPLOYMENT --$IMAGE_NAME:$IMAGE_RELEASE
-              kubectl annotate deploy $DEPLOYMENT kubernetes.io/change-cause="Updated to $IMAGE_VER" --overwrite
+
+              # The following kills the pods. imagePullPolicy Always does the rest
+              kubectl rollout restart deploy $DEPLOYMENT
+              
+              # The following would be used in production. This is not production.
+              # kubectl set image deploy $DEPLOYMENT --$IMAGE_NAME:$IMAGE_RELEASE
+              # kubectl annotate deploy $DEPLOYMENT kubernetes.io/change-cause="Updated to $IMAGE_VER" --overwrite
+
+            # Case three: no deployment
             else
               echo "creating new image deployment/$DEPLOYMENT using $IMAGE_RELEASE"
               kubectl create -f - <<EODEP

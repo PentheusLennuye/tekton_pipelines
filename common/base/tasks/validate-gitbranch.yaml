@@ -13,6 +13,8 @@ spec:
       type: string
   stepTemplate:
   results:  # passes on to other tasks
+    - name: head
+      description: head, cleaned of any refs/heads et
     - name: branch-type
       description: feature, release, develop, doc, documentation, hotfix
     - name: code-version
@@ -44,10 +46,19 @@ spec:
         FATAL_INVALID_VERSIONING = 2
         FATAL_INVALID_HEADNAME = 3
 
+        def standardize_branch_name(branch_name):
+            """Branch names need to have ref/heads or ref/bases removed"""
+            if branch_name[:4] == 'refs':
+                return '/'.join(branch_name.split('/')[2:])
+            else:
+              return branch_name
+            
+
         def set_logging():
             handler = logging.StreamHandler(sys.stdout)
-            handler.setLevel(logging.ERROR)
+            handler.setLevel(logging.INFO)
             logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
             logger.addHandler(handler)
             return logger
 
@@ -64,7 +75,8 @@ spec:
 
         logger = set_logging()
 
-        head = os.getenv('HEAD')
+        head = standardize_branch_name(os.getenv('HEAD'))
+        logger.info(f"Head branch name is {head}")
         if head is None:
             die_horribly(logger, '', FATAL_EMPTY_BRANCHNAME)
 
@@ -76,12 +88,14 @@ spec:
 
         re_semver = re.compile(r'\d+\.\d+\.\d+')
         re_featurever = re.compile(JIRA_PREFIX + r'-\d+')
+
         if branch_type in BRANCHES_SEMVER:
             version = head.split('-')[1]
             if re_semver.match(version) is None:
                 die_horribly(logger, branch, FATAL_INVALID_VERSIONING)
+
         elif branch_type in BRANCHES_FEATUREVER:
-            version = head.split('/')[1]
+            version = head.split('/')[1]  # NIA-293
             if re_featurever.match(version) is None:
                 die_horribly(logger, branch, FATAL_INVALID_VERSIONING)
 
@@ -90,6 +104,10 @@ spec:
             build_extension = '-rc1'
         else:
             build_extension = ''
+
+        f = open('$(results.head.path)', 'w')
+        f.write(head)
+        f.close()
 
         f = open('$(results.branch-type.path)', 'w')
         f.write(branch_type)

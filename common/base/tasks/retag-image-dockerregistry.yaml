@@ -1,0 +1,43 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: retag-image-dockerregistry
+spec:
+  description: Retag a docker image on Docker Registry v2 (i.e. not JFrog)
+  params:
+    - name: env-image
+      description: The simple Docker image with a curl command
+    - name: image-name
+      description: The images' name w/o version 
+    - name: host
+      description: The images' repository
+    - name: project
+      description: The images' project folder
+    - name: old-version
+      description: The image in docker repo that will be retagged uses this
+    - name: new-version
+      description: The image in docker repo's new tag
+  workspaces:
+    - name: output
+  steps:
+  - name: retag-on-remote
+    image: gcr.io/go-containerregistry/crane:debug
+    env:
+      - name: DOCKERHOST
+        value: $(params.host)
+      - name: PROJECT
+        value: $(params.project)
+      - name: IMAGE
+        value: $(params.image-name)
+      - name: OLDVER
+        value: $(params.old-version)
+      - name: NEWVER
+        value: $(params.new-version)
+      - name: WORKSPACE
+        value: $(workspaces.output.path)
+    script: |
+      #!/busybox/sh
+      cd ${WORKSPACE}
+      crane --insecure tag $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER $NEWVER
+      crane --insecure delete $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER $NEWVER

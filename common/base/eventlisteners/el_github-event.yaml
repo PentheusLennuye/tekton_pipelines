@@ -35,11 +35,7 @@ spec:
             name: "cel"
           params:
             - name: "filter"
-              value: "!(body.pull_request.head.ref in ['develop', 'main'])"
-            - name: "overlays"
-              value:
-                - key: branch_name
-                  expression: "body.ref.split('/')[2]"
+              value: "!(body.ref.split('/')[2] in ['develop', 'main'])"
 
     # PULL REQUESTS ============================================================
     # Pull Request Open --------------------------------------------------------

@@ -1,0 +1,60 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: tag-source-code
+spec:
+  description: Update the VERSION file, push; tag source code, push the tag.
+  params:
+    - name: branch
+      description: The branch taking the new VERSION. Usually main.
+    - name: build-user
+      description: The user owning the local repo
+    - name: git-clone-image
+      description: The docker image with Go and Go Tools
+    - name: version
+      description: The new tag and VERSION of the code
+    - name: url
+      description: The URL of the remote Github repository
+  workspaces:
+    - name: source
+    - name: ssh-directory
+  steps:
+    - name: tag-sourcecode
+      image: $(params.git-clone-image)
+      env:
+        - name: PARAM_URL
+          value: $(params.url)
+        - name: PARAM_BUILD_USER
+          value: $(params.build-user)
+        - name: BRANCH_NAME
+          value: $(params.branch)
+        - name: CODE_VERSION
+          value: $(params.version)
+        - name: WORKSPACE
+          value: $(workspaces.source.path)
+        - name: SSHCONFDIR
+          value: $(workspaces.ssh-directory.path)
+        - name: GIT_SSH_COMMAND
+          value: "ssh -i /home/${PARAM_BUILD_USER}/.ssh/id_rsa"
+      script: |
+        #!/usr/bin/env sh
+        cp -R ${SSHCONFDIR} /home/${PARAM_BUILD_USER}/.ssh
+        chmod 700 /home/${PARAM_BUILD_USER}/.ssh
+        chmod -R 600 /home/${PARAM_BUILD_USER}/.ssh/*
+
+        git config --global --add safe.directory ${WORKSPACE}
+        git config --global user.email "gmc@cummings-online.ca"
+        git config --global user.name "PentheusBot"
+
+        echo "Setting VERSION in VERSION file, tagging code and pushing"
+        cd ${WORKSPACE}
+        git checkout ${BRANCH_NAME}
+        echo "${CODE_VERSION}" > VERSION
+        git push --set-upstream origin ${BRANCH_NAME}
+
+        echo "Tagging source code and pushing tag"
+        git tag -a v${CODE_VERSION} \
+                -m"Pipeline push v${CODE_VERSION} from merge into main"
+        git push origin v${CODE_VERSION}
+

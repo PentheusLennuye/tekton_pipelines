@@ -4,32 +4,154 @@ metadata:
   name: github-tag-delete
 spec:
   description: |
-    This pipeline reacts to a "close" pull request from a feature, hotfix or
-    release head. It deletes the deployment.
+    This pipeline reacts to a merge (pull request "close" with "merge" equals
+    "true" from a feature, hotfix or release head. It deletes the deployment.
 
   params:
-    # Images
+    # Repo 
+    - name: repo-url
+      description: The git repo URL
+    - name: head
+      description: The git branch from which the PR wishes a merge
+    - name: base
+      description: The git branch to which the PR wishes a merge
+    - name: user
+      description: The local user on the build containers
+ 
+    # Build Images
+    - name: git-clone-image
+      type: string
+      description: The docker image with git and validation tools
+      default: docker.cummings-online.local/dev/git:0.1.0
+    - name: image-busybox
+      type: string
+      description: A simple busybox image
+      default: yauritux/busybox-curl:latest
     - name: python-image
       type: string
       description: The docker image with Python 3
       default: python:3.12.0-alpine
 
+    # Docker Image
+    - name: docker-host
+      type: string
+      description: The hostname of the docker repo, without https
+    - name: docker-project
+      type: string
+      description: The folder on the repo containing the container
+    - name: build-name
+      type: string
+      description: The name of the image we are building, without version
+
     # Deployment and services
     - name: deployment-name
       type: string
       description: The name of the deployment, service and DNS
-
+ 
   # -----------------------------------------------------
+  workspaces:
+    - name: shared-data
+      description: |
+        This workspace contains the cloned repo files, so they can be read by the
+        next task.
+    - name: git-credentials
+      description: GitHub machine credentials ssh config
+  # -----------------------------------------------------
+
   tasks:
+    - name: validate-gitbranch
+      taskRef:
+        name: validate-gitbranch
+      params:
+        - name: python-image
+          value: $(params.python-image)
+        - name: head
+          value: $(params.head)
+
+    - name: fetch-source
+      runAfter: ["validate-gitbranch"]
+      when:
+        - input: $(params.base)
+          operator: in
+          values: ['main']
+      taskRef:
+        name: clone-github-repo
+      workspaces:
+        - name: output
+          workspace: shared-data
+        - name: ssh-directory
+          workspace: git-credentials
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: head
+          value: main
+        - name: git-clone-image
+          value: $(params.git-clone-image)
+        - name: build-user
+          value: $(params.user)
+
+    - name: tag-source-code
+      runAfter: ['fetch-source']
+      when:
+        - input: $(params.base)
+          operator: in
+          values: ['main']
+      taskRef:
+        name: tag-source-code
+      workspaces:
+        - name: source
+          workspace: shared-data
+        - name: ssh-directory
+          workspace: git-credentials
+      params:
+        - name: git-clone-image
+          value: $(params.git-clone-image)
+        - name: url
+          value: $(params.repo-url)
+        - name: branch
+          value: main
+        - name: build-user
+          value: $(params.user)
+        - name: version 
+          value: $(tasks.validate-gitbranch.results.code-version)
+
+    - name: retag-image
+      runAfter: ['tag-source-code']
+      when:
+       - input: $(params.base)
+         operator: in
+         values: ['main']
+      taskRef:
+        name: retag-image-dockerregistry
+      workspaces:
+        - name: output
+          workspace: shared-data
+      params:
+        - name: env-image
+          value: $(params.image-busybox)
+        - name: image-name
+          value: $(params.build-name)
+        - name: host
+          value: $(params.docker-host)
+        - name: project
+          value: $(params.docker-project)
+        - name: old-version
+          value: $(tasks.validate-gitbranch.results.code-version)$(tasks.validate-gitbranch.results.build-extension)
+        - name: new-version 
+          value: $(tasks.validate-gitbranch.results.code-version)
+
     - name: undeploy-image
+      runAfter: ['retag-image']
       taskRef:
         name: kubernetes-actions  # From Tekton Hub
       params:
         - name: "script"
           value: |
-            export DEPLOYMENT=$(params.deployment-name)
+            export IMAGE=$(params.build-name)
+            export IMAGE_VER=$(tasks.validate-gitbranch.results.code-version)$(tasks.validate-gitbranch.results.build-extension)
+            export DEPLOYMENT=$IMAGE-$(echo $IMAGE_VER | tr '.A-Z' '-a-z')
 
             kubectl version | grep 'Client Version'
             kubectl delete svc $DEPLOYMENT
             kubectl delete deployment/$DEPLOYMENT
-
