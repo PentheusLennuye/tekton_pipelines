@@ -40,4 +40,4 @@ spec:
       #!/busybox/sh
       cd ${WORKSPACE}
       crane --insecure tag $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER $NEWVER
-      crane --insecure delete $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER $NEWVER
+      crane --insecure delete $DOCKERHOST/$PROJECT/$IMAGE:$OLDVER

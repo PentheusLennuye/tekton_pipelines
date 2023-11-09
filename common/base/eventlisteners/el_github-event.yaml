@@ -30,12 +30,18 @@ spec:
           params:
             - name: "filter"
               value: "body.deleted == false"
+        - name: "CEL filter: Ignore pushes into tags"
+          ref:
+            name: "cel"
+          params:
+            - name: "filter"
+              value: "body.ref.split('/')[1] != 'tags'"
         - name: "CEL filter: Ignore pushes into main and develop"
           ref:
             name: "cel"
           params:
             - name: "filter"
-              value: "!(body.ref.split('/')[2] in ['develop', 'main'])"
+              value: "!(body.ref.split('/')[2] in ['develop', 'main', 'tags'])"
 
     # PULL REQUESTS ============================================================
     # Pull Request Open --------------------------------------------------------
