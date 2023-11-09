@@ -69,12 +69,12 @@ spec:
           params:
             - name: "filter"
               value: "body.action in ['opened', 'reopened']"  # no synchronize
-        - name: "CEL filter: Do not accept PRs from develop"
+        - name: "CEL filter: Do not accept PRs from develop or main"
           ref:
             name: "cel"
           params:
             - name: "filter"
-              value: "!(body.pull_request.head.ref == 'develop')"
+              value: "!(body.pull_request.head.ref in ['develop', 'main'])"
         - name: "CEL filter: Accept PRs only to develop and main"
           ref:
             name: "cel"
